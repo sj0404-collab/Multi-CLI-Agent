@@ -12,8 +12,6 @@ jobs:
     name: Build arm64 APK
     runs-on: ubuntu-latest
     timeout-minutes: 360
-    env:
-      TERMUX_PACKAGES_BRANCH: master
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -29,98 +27,76 @@ jobs:
       - name: Install build deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y git gnupg flex bison gperf build-essential zip curl \
-            zlib1g-dev gcc-multilib g++-multilib libc6-dev-i386 lib32ncurses-dev \
-            x11proto-core-dev libx11-dev lib32z-dev ccache libgl1-mesa-dev libxml2-utils \
-            xsltproc unzip lzop python3 python3-pip openjdk-17-jdk
-          sudo apt-get install -y wget tar xz-utils
-        timeout-minutes: 20
-
-      - name: Setup Android SDK
-        run: |
-          sudo mkdir -p /opt/android-sdk
-          sudo chown -R $USER /opt/android-sdk
-          cd /opt/android-sdk
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdtools.zip
-          unzip -q cmdtools.zip
-          mkdir -p cmdline-tools/latest
-          mv cmdline-tools/bin cmdline-tools/lib cmdline-tools/source.properties cmdline-tools/latest/ 2>/dev/null || true
-          ls -la
-        env:
-          ANDROID_HOME: /opt/android-sdk
+          sudo apt-get install -y git gnupg zip curl wget tar xz-utils unzip \
+            openjdk-17-jdk coreutils build-essential
         timeout-minutes: 15
 
-      - name: Accept SDK licenses + install packages
-        run: |
-          export ANDROID_HOME=/opt/android-sdk
-          export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;27.0.12077973" || true
-        env:
-          ANDROID_HOME: /opt/android-sdk
-        timeout-minutes: 30
-
-      # ---- Build custom Termux bootstrap with node+python ----
       - name: Clone termux-packages
         run: |
-          cd /home/runner/work
+          cd ${{ github.workspace }}
           git clone --depth 1 https://github.com/termux/termux-packages.git
-          cd termux-packages
-          # переключаем на базовый набор + наши рантаймы
-          cp ${{ github.workspace }}/repo/bootstrap/packages.txt packages.txt
-          echo "Bootstrap packages:"; cat packages.txt
-        timeout-minutes: 10
+        timeout-minutes: 15
 
+      # ---- Build custom bootstrap (arm64) with node+python+etc inside docker ----
       - name: Build custom bootstrap (arm64)
-        # termux-packages собирает bootstrap в Docker-контейнере termux-packages-android.
-        # Результат: bootstrap-arm64.zip со встроенными node/python/git/openssh/curl.
         run: |
-          cd /home/runner/work/termux-packages
-          ./scripts/run-docker.sh ./scripts/check-packages.sh
-          ./scripts/run-docker.sh ./build-bootstrap.sh 2>&1 | tail -40 || true
-          ls -la output/ 2>/dev/null || true
-          find . -name 'bootstrap-*.zip' 2>/dev/null | head
+          cd ${{ github.workspace }}/termux-packages
+          cat ${{ github.workspace }}/repo/bootstrap/packages.txt
+          # nodejs-lts, python и прочее добавляем в bootstrap через --add
+          ./scripts/run-docker.sh ./scripts/build-bootstraps.sh \
+            --architectures aarch64 \
+            --add nodejs-lts,python,git,openssh,curl,jq,openssl-tool,nano \
+            2>&1 | tail -60
+          echo "=== bootstrap artifacts ==="
+          ls -la bootstrap-aarch64.zip 2>/dev/null || find . -name 'bootstrap-*.zip' | head
         timeout-minutes: 240
 
       - name: Clone termux-app
         run: |
-          cd /home/runner/work
+          cd ${{ github.workspace }}
           git clone --depth 1 https://github.com/termux/termux-app.git
-        timeout-minutes: 10
+        timeout-minutes: 15
 
       - name: Inject custom bootstrap + agent into termux-app
         run: |
-          cd /home/runner/work/termux-app
-          BOOTSTRAP=$(find /home/runner/work/termux-packages -name 'bootstrap-arm64.zip' | head -1)
-          if [ -n "$BOOTSTRAP" ]; then
-            mkdir -p app/src/main/assets
-            cp "$BOOTSTRAP" app/src/main/assets/
-            echo "Embedded bootstrap: $BOOTSTRAP"
-          else
-            echo "WARN: bootstrap not built, using default (termux downloads at runtime)"
+          cd ${{ github.workspace }}/termux-app
+          BOOTSTRAP=$(find ${{ github.workspace }}/termux-packages -name 'bootstrap-aarch64.zip' | head -1)
+          if [ -z "$BOOTSTRAP" ]; then
+            echo "ERROR: bootstrap-aarch64.zip not found"; exit 1
           fi
+          # кладём кастомный bootstrap в cpp, чтобы он не перезаписался
+          mkdir -p app/src/main/cpp
+          cp "$BOOTSTRAP" app/src/main/cpp/bootstrap-aarch64.zip
+          echo "Embedded bootstrap: $BOOTSTRAP ($(du -h "$BOOTSTRAP" | cut -f1))"
+          # запрещаем downloadBootstrap() перезаписывать наш bootstrap
+          python3 - <<'PYEOF'
+import re
+p='app/build.gradle'
+s=open(p).read()
+if 'return;' not in s.split('downloadBootstrap()',1)[1][:300]:
+    s=s.replace('downloadBootstrap() {','downloadBootstrap() {\n        return;',1)
+    open(p,'w').write(s)
+    print("Patched downloadBootstrap() with return;")
+else:
+    print("downloadBootstrap already patched")
+PYEOF
           # вшиваем агент и конфиг в assets
           mkdir -p app/src/main/assets/agent
           cp ${{ github.workspace }}/repo/agent-runtime.js app/src/main/assets/agent/
           cp -r ${{ github.workspace }}/repo/config app/src/main/assets/agent/
-          cp ${{ github.workspace }}/repo/launcher-pc.sh app/src/main/assets/agent/ 2>/dev/null || true
         timeout-minutes: 5
 
       - name: Build APK (assembleRelease)
         run: |
-          cd /home/runner/work/termux-app
-          export ANDROID_HOME=/opt/android-sdk
-          export ANDROID_NDK_HOME=/opt/android-sdk/ndk/27.0.12077973
+          cd ${{ github.workspace }}/termux-app
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon -Pandroid.useAndroidX=true 2>&1 | tail -60
-        env:
-          ANDROID_HOME: /opt/android-sdk
+          ./gradlew :app:assembleRelease --no-daemon 2>&1 | tail -80
         timeout-minutes: 120
 
       - name: Collect APK
         run: |
           mkdir -p ${{ github.workspace }}/repo/dist
-          find /home/runner/work/termux-app -name '*.apk' -exec cp {} ${{ github.workspace }}/repo/dist/ \;
+          find ${{ github.workspace }}/termux-app -name '*.apk' -exec cp {} ${{ github.workspace }}/repo/dist/ \;
           ls -la ${{ github.workspace }}/repo/dist/
 
       - name: Upload APK artifact
