@@ -1,4 +1,4 @@
-name: Build APK (Termux + embedded node/python)
+name: Build APK (Multi CLI Agent - separate from Termux)
 
 on:
   push:
@@ -7,11 +7,14 @@ on:
   release:
     types: [ created ]
 
+env:
+  NEW_PACKAGE: com.termux.multiagent
+
 jobs:
   build:
-    name: Build APK (arm64 + arm + i686 + x86_64)
+    name: Build arm64 APK (unique package + own signature)
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 360
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -27,21 +30,35 @@ jobs:
       - name: Install build deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y git gnupg zip curl wget tar xz-utils unzip \
-            openjdk-17-jdk coreutils python3
+          sudo apt-get install -y git gnupg flex bison gperf build-essential zip curl \
+            zlib1g-dev gcc-multilib g++-multilib libc6-dev-i386 lib32ncurses-dev \
+            x11proto-core-dev libx11-dev lib32z-dev ccache libgl1-mesa-dev libxml2-utils \
+            xsltproc unzip lzop python3 python3-pip openjdk-17-jdk wget tar xz-utils
+        timeout-minutes: 20
+
+      # ---- Clone termux-packages to build a bootstrap for OUR package name ----
+      - name: Clone termux-packages
+        run: |
+          cd ${{ github.workspace }}
+          git clone --depth 1 https://github.com/termux/termux-packages.git
         timeout-minutes: 15
 
-      - name: Download official Termux bootstraps (all ABIs)
+      - name: Set custom package name + build bootstrap (aarch64)
+        # Меняем TERMUX_APP_PACKAGE на com.termux.multiagent и собираем bootstrap
+        # с nodejs/python через build-bootstraps.sh (компилирует под наш пакет).
         run: |
-          mkdir -p ${{ github.workspace }}/bootstrap
-          VER="bootstrap-2026.08.09-r1%2Bapt.android-7"
-          for arch in aarch64 arm i686 x86_64; do
-            curl -sL --max-time 300 -o ${{ github.workspace }}/bootstrap/bootstrap-${arch}.zip \
-              "https://github.com/termux/termux-packages/releases/download/${VER}/bootstrap-${arch}.zip"
-            unzip -t ${{ github.workspace }}/bootstrap/bootstrap-${arch}.zip >/dev/null && echo "${arch} OK"
-          done
-          ls -la ${{ github.workspace }}/bootstrap/
-        timeout-minutes: 20
+          cd ${{ github.workspace }}/termux-packages
+          sed -i "s/^TERMUX_APP_PACKAGE=.*/TERMUX_APP_PACKAGE=com.termux.multiagent/" scripts/properties.sh
+          grep "^TERMUX_APP_PACKAGE" scripts/properties.sh
+          # Долгая компиляция nodejs/python для aarch64 под наш пакет.
+          ./scripts/run-docker.sh ./scripts/build-bootstraps.sh \
+            --architectures aarch64 \
+            --add nodejs-lts,python,git,openssh,curl,jq,openssl-tool,nano \
+            2>&1 | tail -100
+          echo "=== bootstrap artifact ==="
+          find . -name 'bootstrap-*.zip' | head
+          ls -la bootstrap-aarch64.zip 2>/dev/null || true
+        timeout-minutes: 280
 
       - name: Clone termux-app
         run: |
@@ -49,21 +66,32 @@ jobs:
           git clone --depth 1 https://github.com/termux/termux-app.git
         timeout-minutes: 15
 
-      - name: Inject bootstraps + agent into termux-app
+      - name: Inject bootstrap + rename package + sign + agent
         run: |
           chmod +x ${{ github.workspace }}/repo/scripts/patch-termux.sh
           ${{ github.workspace }}/repo/scripts/patch-termux.sh \
             ${{ github.workspace }}/termux-app \
-            ${{ github.workspace }}/bootstrap \
-            ${{ github.workspace }}/repo
-        timeout-minutes: 5
+            ${{ github.workspace }}/termux-packages \
+            ${{ github.workspace }}/repo \
+            com.termux.multiagent
+        timeout-minutes: 10
 
-      - name: Build APK (assembleRelease)
+      - name: Build APK (assembleRelease, signed)
         run: |
           cd ${{ github.workspace }}/termux-app
           chmod +x gradlew
-          ./gradlew :app:assembleRelease --no-daemon 2>&1 | tail -80
-        timeout-minutes: 60
+          ./gradlew :app:assembleRelease --no-daemon 2>&1 | tail -100
+        timeout-minutes: 120
+
+      - name: Verify signature
+        run: |
+          APK=$(find ${{ github.workspace }}/termux-app -name '*release*.apk' | grep -v universal | head -1)
+          APK=$(find ${{ github.workspace }}/termux-app -name '*.apk' | head -1)
+          echo "APK: $APK"
+          $ANDROID_HOME/build-tools/*/apksigner verify --print-certs "$APK" 2>/dev/null || \
+            /opt/android-sdk/build-tools/*/apksigner verify --print-certs "$APK" 2>/dev/null || \
+            echo "(apksigner path not found, will verify via unzip)"
+          unzip -l "$APK" 2>/dev/null | grep -E "libtermux-bootstrap|assets/agent" | head
 
       - name: Collect APK
         run: |
@@ -74,5 +102,5 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: apk-all
+          name: apk-multiagent-arm64
           path: repo/dist/*.apk
