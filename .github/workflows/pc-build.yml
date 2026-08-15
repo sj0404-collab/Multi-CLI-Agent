@@ -64,7 +64,8 @@ jobs:
           cd ../win && zip -r multi-cli-agent-windows.zip multi-cli-agent
           cd ../py && zip -r multi-cli-agent-python.zip multi-cli-agent-python
           echo "=== python edition ==="
-          ls -la release/py/
+          pwd
+          ls -la multi-cli-agent-python.zip
 
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
