@@ -43,6 +43,22 @@ jobs:
           git clone --depth 1 https://github.com/termux/termux-packages.git
         timeout-minutes: 15
 
+      - name: Setup Android SDK + NDK (required by termux-packages)
+        run: |
+          sudo apt-get install -y unzip zip wget 2>/dev/null || true
+          # termux-packages монтирует ~/lib в docker; ставим SDK/NDK на хосте.
+          cd ${{ github.workspace }}/termux-packages
+          # сгенерённые лицензии, чтобы gradle не падал на install properties
+          mkdir -p $HOME/.android
+          touch $HOME/.android/repositories.cfg
+          mkdir -p $HOME/lib/android-sdk/licenses
+          printf "24333f8a63b6825ea9c5514f83c2829b004d1fee\n" > $HOME/lib/android-sdk/licenses/android-sdk-license
+          # установка SDK/NDK скриптом termux-packages (долгий)
+          ./scripts/setup-android-sdk.sh 2>&1 | tail -30 || true
+          ls -la $HOME/lib/android-sdk/ 2>/dev/null || echo "SDK dir not created"
+          ls $HOME/lib/ 2>/dev/null
+        timeout-minutes: 40
+
       - name: Set custom package name + build bootstrap (aarch64)
         # Меняем TERMUX_APP_PACKAGE на com.termux.multiagent и собираем bootstrap
         # с nodejs/python через build-bootstraps.sh (компилирует под наш пакет).
