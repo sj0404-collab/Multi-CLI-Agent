@@ -1,0 +1,16 @@
+# Пакеты, вшиваемые внутрь APK (custom bootstrap).
+# Базовые:
+base-files
+bash
+coreutils
+openssh
+git
+curl
+tar
+# Рантаймы:
+nodejs-lts
+python
+# Полезное для агента:
+jq
+openssl-tool
+nano
