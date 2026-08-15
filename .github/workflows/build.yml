@@ -46,18 +46,28 @@ jobs:
       - name: Setup Android SDK + NDK (required by termux-packages)
         run: |
           sudo apt-get install -y unzip zip wget 2>/dev/null || true
-          # termux-packages монтирует ~/lib в docker; ставим SDK/NDK на хосте.
           cd ${{ github.workspace }}/termux-packages
-          # сгенерённые лицензии, чтобы gradle не падал на install properties
           mkdir -p $HOME/.android
           touch $HOME/.android/repositories.cfg
           mkdir -p $HOME/lib/android-sdk/licenses
           printf "24333f8a63b6825ea9c5514f83c2829b004d1fee\n" > $HOME/lib/android-sdk/licenses/android-sdk-license
-          # установка SDK/NDK скриптом termux-packages (долгий)
-          ./scripts/setup-android-sdk.sh 2>&1 | tail -30 || true
+          # установка SDK/NDK скриптом termux-packages
+          ./scripts/setup-android-sdk.sh 2>&1 | tail -20 || true
           ls -la $HOME/lib/android-sdk/ 2>/dev/null || echo "SDK dir not created"
-          ls $HOME/lib/ 2>/dev/null
-        timeout-minutes: 40
+          # ВАЖНО: предустанавливаем компоненты, которые gradle требует при сборке
+          # пакета 'apt' (иначе docker падает: "Failed to read or create install properties").
+          # sdkmanager живёт в $HOME/lib/android-sdk/cmdline-tools.
+          SDK_MGR=$(find $HOME/lib/android-sdk -name "sdkmanager" 2>/dev/null | head -1)
+          if [ -n "$SDK_MGR" ]; then
+            echo "sdkmanager: $SDK_MGR"
+            yes | "$SDK_MGR" --licenses >/dev/null 2>&1 || true
+            "$SDK_MGR" "platforms;android-33" "build-tools;30.0.3" 2>&1 | tail -10 || true
+            "$SDK_MGR" "platforms;android-28" "platforms;android-30" 2>&1 | tail -5 || true
+          else
+            echo "WARN: sdkmanager не найден в $HOME/lib/android-sdk"
+          fi
+          ls $HOME/lib/android-sdk/ 2>/dev/null
+        timeout-minutes: 60
 
       - name: Set custom package name + build bootstrap (aarch64)
         # Меняем TERMUX_APP_PACKAGE на com.termux.multiagent и собираем bootstrap
