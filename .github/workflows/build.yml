@@ -11,7 +11,7 @@ jobs:
   build:
     name: Build arm64 APK
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 180
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -28,27 +28,18 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y git gnupg zip curl wget tar xz-utils unzip \
-            openjdk-17-jdk coreutils build-essential python3
+            openjdk-17-jdk coreutils python3
         timeout-minutes: 15
 
-      - name: Clone termux-packages
+      - name: Download official Termux bootstrap (aarch64)
         run: |
-          cd ${{ github.workspace }}
-          git clone --depth 1 https://github.com/termux/termux-packages.git
+          mkdir -p ${{ github.workspace }}/bootstrap
+          curl -sL --max-time 300 -o ${{ github.workspace }}/bootstrap/bootstrap-aarch64.zip \
+            "https://github.com/termux/termux-packages/releases/download/bootstrap-2026.08.09-r1%2Bapt.android-7/bootstrap-aarch64.zip"
+          ls -la ${{ github.workspace }}/bootstrap/
+          # проверка, что это валидный zip
+          unzip -t ${{ github.workspace }}/bootstrap/bootstrap-aarch64.zip >/dev/null && echo "zip OK"
         timeout-minutes: 15
-
-      # ---- Build custom bootstrap (arm64) with node+python+etc inside docker ----
-      - name: Build custom bootstrap (arm64)
-        run: |
-          cd ${{ github.workspace }}/termux-packages
-          cat ${{ github.workspace }}/repo/bootstrap/packages.txt
-          ./scripts/run-docker.sh ./scripts/build-bootstraps.sh \
-            --architectures aarch64 \
-            --add nodejs-lts,python,git,openssh,curl,jq,openssl-tool,nano \
-            2>&1 | tail -80
-          echo "=== bootstrap artifacts ==="
-          ls -la bootstrap-aarch64.zip 2>/dev/null || find . -name 'bootstrap-*.zip' | head
-        timeout-minutes: 240
 
       - name: Clone termux-app
         run: |
@@ -56,12 +47,12 @@ jobs:
           git clone --depth 1 https://github.com/termux/termux-app.git
         timeout-minutes: 15
 
-      - name: Inject custom bootstrap + agent into termux-app
+      - name: Inject bootstrap + agent into termux-app
         run: |
           chmod +x ${{ github.workspace }}/repo/scripts/patch-termux.sh
           ${{ github.workspace }}/repo/scripts/patch-termux.sh \
             ${{ github.workspace }}/termux-app \
-            ${{ github.workspace }}/termux-packages \
+            ${{ github.workspace }}/bootstrap \
             ${{ github.workspace }}/repo
         timeout-minutes: 5
 
@@ -70,7 +61,7 @@ jobs:
           cd ${{ github.workspace }}/termux-app
           chmod +x gradlew
           ./gradlew :app:assembleRelease --no-daemon 2>&1 | tail -80
-        timeout-minutes: 120
+        timeout-minutes: 60
 
       - name: Collect APK
         run: |
