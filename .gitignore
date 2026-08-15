@@ -1,0 +1,12 @@
+# Сборки и артефакты (не в git)
+dist/
+dist-pc/
+dist-*/
+linux_out/
+win_out/
+docker_out/
+*.apk
+*.tar.gz
+*.zip
+*.jks
+node_modules/
