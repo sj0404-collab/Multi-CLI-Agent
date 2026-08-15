@@ -1,0 +1,15 @@
+services:
+  multi-cli-agent:
+    build: .
+    image: multi-cli-agent
+    container_name: multi-cli-agent
+    ports:
+      - "8765:8765"
+    environment:
+      MCP_PORT: "8765"
+      OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
+      GITHUB_TOKEN: "${GITHUB_TOKEN:-}"
+      HF_TOKEN: "${HF_TOKEN:-}"
+    volumes:
+      - ./data:/data
+    restart: unless-stopped

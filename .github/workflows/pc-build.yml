@@ -1,0 +1,111 @@
+name: Build PC versions (Linux / Windows / Docker)
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'agent-runtime.js'
+      - 'config/**'
+      - 'linux/**'
+      - 'win/**'
+      - 'docker/**'
+      - 'Dockerfile'
+      - '.github/workflows/pc-build.yml'
+  workflow_dispatch:
+
+jobs:
+  package-pc:
+    name: Package PC artifacts (Linux + Windows)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Linux standalone archive
+        run: |
+          set -e
+          mkdir -p release/linux/multi-cli-agent
+          cp agent-runtime.js release/linux/multi-cli-agent/
+          cp launcher-pc.sh release/linux/multi-cli-agent/
+          cp -r config release/linux/multi-cli-agent/
+          cp linux/install.sh release/linux/multi-cli-agent/install.sh
+          chmod +x release/linux/multi-cli-agent/*.sh
+          # Linux установочный пакет (tar.gz)
+          cd release/linux
+          tar -czf multi-cli-agent-linux.tar.gz multi-cli-agent
+          # Windows установочный пакет (zip)
+          mkdir -p ../win/multi-cli-agent
+          cd ../win
+          cp ../../agent-runtime.js multi-cli-agent/
+          cp ../../win/launcher.bat multi-cli-agent/
+          cp ../../win/launcher.ps1 multi-cli-agent/
+          cp -r ../../config multi-cli-agent/
+          zip -r multi-cli-agent-windows.zip multi-cli-agent
+          cd ..
+          echo "=== содержимое release ==="
+          ls -la linux/ win/
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: multi-cli-agent-linux
+          path: release/linux/multi-cli-agent-linux.tar.gz
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: multi-cli-agent-windows
+          path: release/win/multi-cli-agent-windows.zip
+
+      - name: Publish Linux/Windows to GitHub Release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/linux/multi-cli-agent-linux.tar.gz
+            release/win/multi-cli-agent-windows.zip
+          tag_name: v${{ github.run_number }}
+          name: Multi CLI-Agent PC v${{ github.run_number }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docker:
+    name: Build Docker (browser) image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build -t multi-cli-agent:${{ github.run_number }} .
+          docker image ls multi-cli-agent
+
+      - name: Save Docker image artifact
+        run: |
+          docker save multi-cli-agent:${{ github.run_number }} | gzip > multi-cli-agent-docker.tar.gz
+          ls -la multi-cli-agent-docker.tar.gz
+
+      - name: Upload Docker image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: multi-cli-agent-docker
+          path: multi-cli-agent-docker.tar.gz
+
+      # Публикуем образ в GHCR, если есть токен с правами packages
+      - name: Login to GHCR
+        if: env.GHCR_TOKEN != ''
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push to GHCR
+        if: env.GHCR_TOKEN != ''
+        run: |
+          docker tag multi-cli-agent:${{ github.run_number }} ghcr.io/${{ github.repository }}:latest
+          docker push ghcr.io/${{ github.repository }}:latest
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
