@@ -46,6 +46,26 @@ jobs:
           echo "=== содержимое release ==="
           ls -la linux/ win/
 
+      - name: Build Python edition + add to packages
+        run: |
+          set -e
+          # включаем Python-версию в Linux-пакет
+          cp -r python release/linux/multi-cli-agent/python
+          # включаем Python-версию в Windows-пакет
+          cp -r python ../win/multi-cli-agent/python
+          # отдельный Python-пакет
+          mkdir -p ../py/multi-cli-agent-python
+          cp python/agent_py.py ../py/multi-cli-agent-python/
+          cp python/launcher_py.py ../py/multi-cli-agent-python/
+          cp -r config ../py/multi-cli-agent-python/
+          cp launcher-pc.sh ../py/multi-cli-agent-python/ 2>/dev/null || true
+          # переупаковка linux и windows с python
+          cd release/linux && tar -czf multi-cli-agent-linux.tar.gz multi-cli-agent
+          cd ../win && zip -r multi-cli-agent-windows.zip multi-cli-agent
+          cd ../py && zip -r multi-cli-agent-python.zip multi-cli-agent-python
+          echo "=== python edition ==="
+          ls -la ../py/
+
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
         with:
@@ -57,6 +77,12 @@ jobs:
         with:
           name: multi-cli-agent-windows
           path: release/win/multi-cli-agent-windows.zip
+
+      - name: Upload Python artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: multi-cli-agent-python
+          path: release/py/multi-cli-agent-python.zip
 
       # Публикация релиза выполняется вручную через личный PAT (Actions GITHUB_TOKEN
       # не имеет прав на создание релизов для этого репозитория). Артефакты
