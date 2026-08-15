@@ -67,7 +67,8 @@ jobs:
             release/win/multi-cli-agent-windows.zip
           tag_name: v${{ github.run_number }}
           name: Multi CLI-Agent PC v${{ github.run_number }}
-          generate_release_notes: true
+          generate_release_notes: false
+          fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -95,17 +96,13 @@ jobs:
           name: multi-cli-agent-docker
           path: multi-cli-agent-docker.tar.gz
 
-      # Публикуем образ в GHCR, если есть токен с правами packages
-      - name: Login to GHCR
-        if: env.GHCR_TOKEN != ''
-        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-        env:
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Push to GHCR
+      # Публикуем образ в GHCR (имя строго в нижнем регистре)
+      - name: Push Docker image to GHCR
         if: env.GHCR_TOKEN != ''
         run: |
-          docker tag multi-cli-agent:${{ github.run_number }} ghcr.io/${{ github.repository }}:latest
-          docker push ghcr.io/${{ github.repository }}:latest
+          IMG=$(echo "ghcr.io/${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          docker tag multi-cli-agent:${{ github.run_number }} "$IMG:latest"
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker push "$IMG:latest"
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
