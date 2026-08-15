@@ -67,7 +67,7 @@ jobs:
           git clone --depth 1 https://github.com/termux/termux-packages.git
           cd termux-packages
           # переключаем на базовый набор + наши рантаймы
-          cp /home/runner/work/repo/bootstrap/packages.txt packages.txt
+          cp ${{ github.workspace }}/repo/bootstrap/packages.txt packages.txt
           echo "Bootstrap packages:"; cat packages.txt
         timeout-minutes: 10
 
@@ -101,9 +101,9 @@ jobs:
           fi
           # вшиваем агент и конфиг в assets
           mkdir -p app/src/main/assets/agent
-          cp /home/runner/work/repo/agent-runtime.js app/src/main/assets/agent/
-          cp -r /home/runner/work/repo/config app/src/main/assets/agent/
-          cp /home/runner/work/repo/launcher-pc.sh app/src/main/assets/agent/ 2>/dev/null || true
+          cp ${{ github.workspace }}/repo/agent-runtime.js app/src/main/assets/agent/
+          cp -r ${{ github.workspace }}/repo/config app/src/main/assets/agent/
+          cp ${{ github.workspace }}/repo/launcher-pc.sh app/src/main/assets/agent/ 2>/dev/null || true
         timeout-minutes: 5
 
       - name: Build APK (assembleRelease)
@@ -119,9 +119,9 @@ jobs:
 
       - name: Collect APK
         run: |
-          mkdir -p /home/runner/work/repo/dist
-          find /home/runner/work/termux-app -name '*.apk' -exec cp {} /home/runner/work/repo/dist/ \;
-          ls -la /home/runner/work/repo/dist/
+          mkdir -p ${{ github.workspace }}/repo/dist
+          find /home/runner/work/termux-app -name '*.apk' -exec cp {} ${{ github.workspace }}/repo/dist/ \;
+          ls -la ${{ github.workspace }}/repo/dist/
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
