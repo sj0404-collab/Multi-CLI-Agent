@@ -6,20 +6,13 @@ on:
     paths:
       - 'browser-apk/**'
       - 'browser-app/**'
-<<<<<<< HEAD
       - 'keystore/**'
       - 'docs/**'
-=======
->>>>>>> 99882ab (Suwayomi autodiscovery in MangaLib Plus)
   workflow_dispatch:
 
 jobs:
   build:
-<<<<<<< HEAD
     name: Build browser APK (WebView, signed)
-=======
-    name: Build browser APK (WebView)
->>>>>>> 99882ab (Suwayomi autodiscovery in MangaLib Plus)
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -48,14 +41,6 @@ jobs:
           ANDROID_HOME: /opt/android-sdk
         timeout-minutes: 20
 
-<<<<<<< HEAD
-      - name: Sync docs into assets
-        run: |
-          cp -r docs/browser/* browser-apk/app/src/main/assets/browser/ 2>/dev/null || true
-          cp -r docs/mangalib-plus.html browser-apk/app/src/main/assets/mangalib-plus.html 2>/dev/null || true
-          cp -r docs/mangalib-plus.js browser-apk/app/src/main/assets/mangalib-plus.js 2>/dev/null || true
-          cp -r docs/index.html browser-apk/app/src/main/assets/index.html 2>/dev/null || true
-
       - name: Build signed APK (assembleRelease)
         run: |
           set -o pipefail
@@ -68,49 +53,16 @@ jobs:
             unzip -q /tmp/gradle.zip -d /opt
           fi
           /opt/gradle-8.5/bin/gradle assembleRelease --no-daemon -PUNI_KEYSTORE="${{ github.workspace }}/keystore/release.jks" 2>&1 | tail -80
-=======
-      - name: Sync browser-app into browser-apk assets
-        run: |
-          cp -r browser-app/index.html browser-apk/app/src/main/assets/
-          cp -r browser-app/style.css browser-apk/app/src/main/assets/
-          cp -r browser-app/app.js browser-apk/app/src/main/assets/
-
-      - name: Build APK (assembleRelease)
-        run: |
-          cd browser-apk
-          echo "sdk.dir=/opt/android-sdk" > local.properties
-          gradle assembleRelease --no-daemon 2>&1 | tail -60 || {
-            echo "gradle not installed, installing wrapper...";
-            wget -q https://raw.githubusercontent.com/gradle/gradle/v8.5.0/gradlew -O gradlew 2>/dev/null || true;
-          }
-          # fallback: сгенерировать wrapper
-          export ANDROID_HOME=/opt/android-sdk
-          cd browser-apk
-          if command -v gradle >/dev/null 2>&1; then
-            gradle assembleRelease --no-daemon 2>&1 | tail -60
-          else
-            echo "Устанавливаю gradle..."
-            wget -q https://services.gradle.org/distributions/gradle-8.5-bin.zip -O /tmp/gradle.zip
-            unzip -q /tmp/gradle.zip -d /opt
-            /opt/gradle-8.5/bin/gradle assembleRelease --no-daemon 2>&1 | tail -60
-          fi
->>>>>>> 99882ab (Suwayomi autodiscovery in MangaLib Plus)
         env:
           ANDROID_HOME: /opt/android-sdk
         timeout-minutes: 25
 
       - name: Collect APK
         run: |
-<<<<<<< HEAD
           set -o pipefail
           mkdir -p dist
           find . -path '*release*' -name '*.apk' -exec cp {} dist/ \;
           ls -la dist/ 2>/dev/null || echo "APK not found"
-=======
-          mkdir -p dist
-          find . -name '*.apk' -path '*release*' -exec cp {} dist/ \;
-          ls -la dist/ 2>/dev/null || echo "APK не найден"
->>>>>>> 99882ab (Suwayomi autodiscovery in MangaLib Plus)
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
