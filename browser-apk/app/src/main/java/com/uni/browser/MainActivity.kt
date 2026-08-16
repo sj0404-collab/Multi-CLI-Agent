@@ -20,8 +20,6 @@ class MainActivity : AppCompatActivity() {
         webView = WebView(this)
         setContentView(webView)
 
-        WebView.setWebContentsDebuggingEnabled(true)
-
         val settings = webView.settings
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
@@ -34,7 +32,35 @@ class MainActivity : AppCompatActivity() {
         webView.webViewClient = WebViewClient()
         webView.addJavascriptInterface(Bridge(this), "AndroidBridge")
 
-        // Обработка ошибок загрузки — не падаем, а показываем сообщение
-        webView.webViewClient = object : WebViewClient() {
-            override fun onReceivedError(view: WebView?, errorCode: Int, description: String?, failingUrl: String?) {
-                webView.loadUrl("javascript:document.body.innerHTML=
+        webView.loadUrl("file:///android_asset/index.html")
+    }
+
+    class Bridge(private val ctx: Context) {
+        @JavascriptInterface
+        fun backendBase(): String = "http://127.0.0.1:8765"
+        private var ttsEngine: android.speech.tts.TextToSpeech? = null
+        @JavascriptInterface
+        fun speak(text: String) {
+            var tts = ttsEngine
+            if (tts == null) {
+                tts = android.speech.tts.TextToSpeech(ctx) { status ->
+                    if (status == android.speech.tts.TextToSpeech.SUCCESS) {
+                        ttsEngine?.language = java.util.Locale("ru", "RU")
+                        ttsEngine?.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "mub")
+                    }
+                }
+                ttsEngine = tts
+                tts.language = java.util.Locale("ru", "RU")
+                tts.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "mub")
+            } else {
+                tts.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "mub")
+            }
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onBackPressed() {
+        if (webView.canGoBack()) webView.goBack()
+        else super.onBackPressed()
+    }
+}
