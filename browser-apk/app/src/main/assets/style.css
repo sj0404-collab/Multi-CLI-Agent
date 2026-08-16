@@ -1,0 +1,88 @@
+:root {
+  --bg: #f4f4f5;
+  --fg: #1a1a1a;
+  --panel: #ffffff;
+  --accent: #2563eb;
+  --accent2: #7c3aed;
+  --border: #e4e4e7;
+  --muted: #71717a;
+}
+body.dark {
+  --bg: #18181b;
+  --fg: #f4f4f5;
+  --panel: #27272a;
+  --border: #3f3f46;
+  --muted: #a1a1aa;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  font-family: -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+  background: var(--bg); color: var(--fg);
+  overflow: hidden;
+}
+#app { display: flex; flex-direction: column; height: 100vh; }
+
+/* Топ-бар */
+#topbar {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px; background: var(--panel);
+  border-bottom: 1px solid var(--border); z-index: 5;
+}
+.urlbar { flex: 1; display: flex; align-items: center; gap: 6px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 20px; padding: 4px 10px; }
+#urlInput { flex: 1; border: none; background: transparent; color: var(--fg);
+  font-size: 15px; outline: none; }
+.tb-btn { background: transparent; border: none; color: var(--fg);
+  font-size: 20px; cursor: pointer; padding: 6px 8px; border-radius: 8px; }
+.tb-btn:hover { background: var(--border); }
+
+/* Читалка */
+#reader { flex: 1; overflow-y: auto; padding: 0 14px 120px; }
+#pageHeader { padding: 12px 4px 4px; }
+#pageHeader h1 { margin: 0; font-size: 22px; }
+#pageHeader .url { color: var(--muted); font-size: 13px; word-break: break-all; }
+#content { max-width: 720px; margin: 0 auto; line-height: 1.75; font-size: 18px; }
+#content p { margin: 0 0 16px; }
+
+/* Панели */
+aside {
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(400px, 92vw);
+  background: var(--panel); box-shadow: -8px 0 30px rgba(0,0,0,.2);
+  display: flex; flex-direction: column; z-index: 20; }
+aside.hidden { display: none; }
+.panel-head { display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px; border-bottom: 1px solid var(--border); font-weight: 600; }
+#aiMsgs { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.msg { max-width: 85%; padding: 8px 12px; border-radius: 12px; font-size: 15px; white-space: pre-wrap; }
+.msg.user { align-self: flex-end; background: var(--accent); color: #fff; }
+.msg.ai { align-self: flex-start; background: var(--bg); border: 1px solid var(--border); }
+.panel-input { display: flex; gap: 6px; padding: 10px; border-top: 1px solid var(--border); }
+.panel-input textarea { flex: 1; resize: none; border: 1px solid var(--border); border-radius: 10px;
+  padding: 8px; background: var(--bg); color: var(--fg); font-size: 15px; }
+.panel-settings { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--border); }
+.panel-settings select, .panel-settings input { padding: 7px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--fg); }
+
+/* Библиотека */
+#libItems { flex: 1; overflow-y: auto; padding: 10px; }
+.lib-item { padding: 10px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; cursor: pointer; }
+.lib-item .t { font-weight: 600; font-size: 15px; }
+.lib-item .u { color: var(--muted); font-size: 12px; word-break: break-all; }
+
+/* Плавающие кнопки */
+#fab { position: fixed; right: 14px; bottom: 18px; display: flex; flex-direction: column; gap: 8px; z-index: 15; }
+.fab-btn { width: 48px; height: 48px; border-radius: 50%; border: none; font-size: 20px;
+  background: var(--accent); color: #fff; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,.3); }
+.fab-btn:nth-child(odd) { background: var(--accent2); }
+
+/* OCR */
+#ocrOverlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: flex;
+  align-items: center; justify-content: center; z-index: 30; }
+#ocrOverlay.hidden { display: none; }
+.ocr-box { background: var(--panel); border-radius: 14px; width: min(500px, 92vw);
+  padding: 14px; max-height: 85vh; overflow-y: auto; }
+#ocrDrop { border: 2px dashed var(--border); border-radius: 10px; padding: 30px;
+  text-align: center; color: var(--muted); margin: 10px 0; }
+#ocrResult { white-space: pre-wrap; margin-top: 10px; font-size: 15px; }

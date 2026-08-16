@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Multi Uni-Browser</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <!-- Топ-бар -->
+  <header id="topbar">
+    <button class="tb-btn" id="btnLibrary" title="Библиотека">📚</button>
+    <div class="urlbar">
+      <input id="urlInput" type="text" placeholder="Введите URL или текст для чтения…" autocomplete="off" spellcheck="false">
+      <button class="tb-btn" id="btnGo" title="Открыть/читать">▶</button>
+    </div>
+    <button class="tb-btn" id="btnAi" title="AI-чат">🤖</button>
+  </header>
+
+  <!-- Основная область: просмотр страницы -->
+  <main id="reader">
+    <div id="pageHeader"></div>
+    <article id="content" contenteditable="false"></article>
+  </main>
+
+  <!-- Панель AI-чата -->
+  <aside id="aiPanel" class="hidden">
+    <div class="panel-head">
+      <span>🤖 AI-ассистент</span>
+      <button class="tb-btn" id="btnAiClose">✕</button>
+    </div>
+    <div id="aiMsgs"></div>
+    <div class="panel-input">
+      <textarea id="aiInput" rows="2" placeholder="Спроси о странице или задай вопрос…"></textarea>
+      <button class="tb-btn" id="btnAiSend">➤</button>
+    </div>
+    <div class="panel-settings">
+      <select id="aiProvider">
+        <option value="zen">Zen (без ключа)</option>
+        <option value="openrouter">OpenRouter</option>
+      </select>
+      <input id="aiKey" type="password" placeholder="OpenRouter ключ (если выбран)">
+    </div>
+  </aside>
+
+  <!-- Библиотека -->
+  <aside id="libPanel" class="hidden">
+    <div class="panel-head"><span>📚 Библиотека</span><button class="tb-btn" id="btnLibClose">✕</button></div>
+    <div id="libItems"></div>
+  </aside>
+
+  <!-- Плавающие кнопки -->
+  <div id="fab">
+    <button class="fab-btn" id="fabVoice" title="Озвучить">🔊</button>
+    <button class="fab-btn" id="fabStopVoice" title="Стоп">⏹</button>
+    <button class="fab-btn" id="fabOcr" title="OCR сканер">🔍</button>
+    <button class="fab-btn" id="fabTranslate" title="Перевести">🌐</button>
+    <button class="fab-btn" id="fabSave" title="Сохранить в библиотеку">💾</button>
+    <button class="fab-btn" id="fabMode" title="Тёмная/светлая">🌙</button>
+  </div>
+
+  <!-- OCR-оверлей -->
+  <div id="ocrOverlay" class="hidden">
+    <div class="ocr-box">
+      <div class="panel-head"><span>🔍 OCR — вставьте изображение или выберите файл</span><button class="tb-btn" id="btnOcrClose">✕</button></div>
+      <input type="file" id="ocrFile" accept="image/*">
+      <div id="ocrDrop">или перетащите изображение сюда</div>
+      <div id="ocrResult"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Tesseract для OCR (загружается по требованию, graceful) -->
+<script>
+  window.Tesseract = null;
+</script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
