@@ -44,21 +44,26 @@ jobs:
           cp -r browser-app/index.html browser-apk/app/src/main/assets/
           cp -r browser-app/style.css browser-apk/app/src/main/assets/
           cp -r browser-app/app.js browser-apk/app/src/main/assets/
-          cp -r browser-app/mangalib.html browser-apk/app/src/main/assets/ 2>/dev/null || true
 
       - name: Build APK (assembleRelease)
         run: |
-          set -o pipefail
-          export ANDROID_HOME=/opt/android-sdk
           cd browser-apk
           echo "sdk.dir=/opt/android-sdk" > local.properties
-          # используем gradle 8.5 (совместим с AGP 8.2.2), не системный 9.x
-          if [ ! -d /opt/gradle-8.5 ]; then
-            echo "Устанавливаю gradle 8.5..."
+          gradle assembleRelease --no-daemon 2>&1 | tail -60 || {
+            echo "gradle not installed, installing wrapper...";
+            wget -q https://raw.githubusercontent.com/gradle/gradle/v8.5.0/gradlew -O gradlew 2>/dev/null || true;
+          }
+          # fallback: сгенерировать wrapper
+          export ANDROID_HOME=/opt/android-sdk
+          cd browser-apk
+          if command -v gradle >/dev/null 2>&1; then
+            gradle assembleRelease --no-daemon 2>&1 | tail -60
+          else
+            echo "Устанавливаю gradle..."
             wget -q https://services.gradle.org/distributions/gradle-8.5-bin.zip -O /tmp/gradle.zip
             unzip -q /tmp/gradle.zip -d /opt
+            /opt/gradle-8.5/bin/gradle assembleRelease --no-daemon 2>&1 | tail -60
           fi
-          /opt/gradle-8.5/bin/gradle assembleRelease --no-daemon 2>&1 | tail -80
         env:
           ANDROID_HOME: /opt/android-sdk
         timeout-minutes: 25

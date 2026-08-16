@@ -9,27 +9,6 @@ const API = (typeof AndroidBridge !== "undefined" && AndroidBridge.backendBase)
   : "/api";
 const fetchPageApi = (url) => API + "/fetch?url=" + encodeURIComponent(url);
 
-// ── Нативный HTTP-мост (в APK) ─────────────────────────────────────────
-async function nativeAi(provider, model, key, messages) {
-  const url = provider === "openrouter"
-    ? "https://openrouter.ai/api/v1/chat/completions"
-    : "https://opencode.ai/zen/v1/chat/completions";
-  const body = JSON.stringify({ model, messages, max_tokens: 1500, stream: false });
-  const res = JSON.parse(AndroidBridge.httpPost(url, body));
-  if (res.error) throw new Error(res.error);
-  if (res.code >= 300) {
-    // Cloudflare-блок через Zen — попробуем с минимальным payload (через curl невозможен, пробуем другую модель)
-    throw new Error("HTTP " + res.code + ": " + String(res.body).slice(0,200));
-  }
-  try {
-    const j = JSON.parse(res.body);
-    const msg = j.choices?.[0]?.message || {};
-    return msg.content || msg.reasoning || "";
-  } catch (e) { throw new Error("Bad AI response"); }
-}
-
-
-
 // ── Состояние ─────────────────────────────────────────────────────────────
 const state = {
   currentUrl: null,
@@ -213,10 +192,6 @@ async function sendAi() {
   state.aiMsgs.push({ role: "ai", content: "…" });
   renderAi();
   try {
-    let reply;
-    if (typeof AndroidBridge !== "undefined" && AndroidBridge.httpPost) {
-      reply = await nativeAi(aiProvider.value, aiProvider.value === "zen" ? "mimo-v2.5-free" : "google/gemma-4-31b-it:free", aiKey.value.trim(), messages);
-    } else {
     const r = await fetch(API + "/ai", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -230,8 +205,6 @@ async function sendAi() {
     const j = await r.json();
     if (j.error) throw new Error(j.error);
     state.aiMsgs[state.aiMsgs.length - 1] = { role: "ai", content: j.reply || "…" };
-    }
-    if (reply) state.aiMsgs[state.aiMsgs.length - 1] = { role: "ai", content: reply };
   } catch (e) {
     state.aiMsgs[state.aiMsgs.length - 1] = { role: "ai", content: "Ошибка: " + e.message };
   }

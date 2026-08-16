@@ -11,26 +11,13 @@ android {
         applicationId = "com.uni.browser"
         minSdk = 24
         targetSdk = 34
-        versionCode = 2
-        versionName = "2.0.0"
-    }
-
-    signingConfigs {
-        create("release") {
-            // Keystore в корне репозитория. UNI_KEYSTORE передаётся из CI (абсолютный путь).
-            val keystorePath = project.findProperty("UNI_KEYSTORE") as String?
-                ?: rootProject.projectDir.parentFile.resolve("keystore/release.jks").absolutePath
-            storeFile = file(keystorePath)
-            storePassword = "multiagent123"
-            keyAlias = "multiagent"
-            keyPassword = "multiagent123"
-        }
+        versionCode = 1
+        versionName = "1.0.0"
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("release")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
         }
     }
