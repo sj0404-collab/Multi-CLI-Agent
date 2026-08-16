@@ -149,9 +149,10 @@
     function suwayomiView() {
       return `
         <div style="margin-bottom:8px"><b>🗃 Suwayomi</b></div>
-        <div style="display:flex;gap:6px">
-          <input id="mlp-suwa-url" placeholder="URL Suwayomi (http://127.0.0.1:4567)" style="flex:1">
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <input id="mlp-suwa-url" placeholder="URL Suwayomi (http://127.0.0.1:4567)" style="flex:1;min-width:180px">
           <button id="mlp-suwa-connect">Подключить</button>
+          <button id="mlp-suwa-find">🔎 Автопоиск</button>
         </div>
         <div id="mlp-suwa-status" style="font-size:13px;color:#8a8a9a;margin-top:6px"></div>`;
     }
@@ -190,6 +191,7 @@
       if (e.target.id === "mlp-lens") { try { window.open("https://lens.google.com/", "_blank"); } catch (er) {} return; }
       if (e.target.id === "mlp-reload-lib") { loadLib(); return; }
       if (e.target.id === "mlp-suwa-connect") { connectSuwayomi(); return; }
+      if (e.target.id === "mlp-suwa-find") { findSuwayomi(); return; }
     });
 
     // AI
@@ -281,19 +283,51 @@
     function initSuwayomi() {
       const saved = localStorage.getItem("mlp_suwa_url") || "";
       if (saved) document.getElementById("mlp-suwa-url").value = saved;
+      // Автопоиск при первом открытии, если URL ещё не сохранён
+      if (!saved) setTimeout(() => findSuwayomi(), 500);
     }
-    async function connectSuwayomi() {
-      const url = document.getElementById("mlp-suwa-url").value.trim() || "http://127.0.0.1:4567";
-      localStorage.setItem("mlp_suwa_url", url);
+    async function connectSuwayomi(url) {
+      const target = url || document.getElementById("mlp-suwa-url").value.trim() || "http://127.0.0.1:4567";
+      localStorage.setItem("mlp_suwa_url", target);
       const st = document.getElementById("mlp-suwa-status");
-      st.textContent = "Проверяю " + url + " …";
+      st.textContent = "Проверяю " + target + " …";
       try {
-        const r = await fetch(url + "/api/v1/manga", { timeout: 8000 });
-        if (r.ok) { st.textContent = "✓ Suwayomi подключён: " + url; }
-        else { st.textContent = "Ответ " + r.status + ". Проверь адрес."; }
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 8000);
+        const r = await fetch(target + "/api/v1/manga", { signal: ctrl.signal });
+        clearTimeout(t);
+        if (r.ok) { st.textContent = "✓ Suwayomi подключён: " + target; return true; }
+        st.textContent = "Ответ " + r.status + ". Проверь адрес.";
+        return false;
       } catch (e) {
-        st.textContent = "Не удалось подключиться. Suwayomi может не работать или адрес неверен.";
+        st.textContent = "Не удалось подключиться к " + target + ".";
+        return false;
       }
+    }
+    async function findSuwayomi() {
+      const st = document.getElementById("mlp-suwa-status");
+      st.textContent = "Ищу Suwayomi…";
+      // Список адресов для автопоиска
+      const candidates = [
+        "http://127.0.0.1:4567", "http://localhost:4567",
+        "http://192.168.1.1:4567", "http://192.168.0.1:4567",
+        "http://10.0.2.2:4567", "http://10.0.0.1:4567",
+      ];
+      for (const c of candidates) {
+        try {
+          const ctrl = new AbortController();
+          const t = setTimeout(() => ctrl.abort(), 4000);
+          const r = await fetch(c + "/api/v1/manga", { signal: ctrl.signal });
+          clearTimeout(t);
+          if (r.ok) {
+            document.getElementById("mlp-suwa-url").value = c;
+            localStorage.setItem("mlp_suwa_url", c);
+            st.textContent = "✓ Suwayomi найден: " + c;
+            return;
+          }
+        } catch (e) { /* пробуем следующий */ }
+      }
+      st.textContent = "Не найден. Укажи адрес вручную (Suwayomi может быть на GitHub/другом хосте).";
     }
 
     fab.onclick = open;
