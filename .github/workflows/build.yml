@@ -87,6 +87,11 @@ jobs:
       - name: Set custom package name + build bootstrap (aarch64)
         # Меняем TERMUX_APP_PACKAGE на com.termux.multiagent и собираем bootstrap
         # с nodejs/python через build-bootstraps.sh (компилирует под наш пакет).
+        env:
+          # docker-контейнер ищет SDK в /home/builder/lib/android-sdk-$REV.
+          # Монтируем наш хостовый SDK туда, чтобы gradle не пытался доустанавливать
+          # android-33 / build-tools 30.0.3 (которые мы уже поставили).
+          TERMUX_DOCKER_RUN_EXTRA_ARGS: "--volume ${{ github.workspace }}/termux-packages/build-tools/android-sdk-9123335:/home/builder/lib/android-sdk-9123335"
         run: |
           cd ${{ github.workspace }}/termux-packages
           sed -i "s/^TERMUX_APP_PACKAGE=.*/TERMUX_APP_PACKAGE=com.termux.multiagent/" scripts/properties.sh
@@ -95,7 +100,7 @@ jobs:
           ./scripts/run-docker.sh ./scripts/build-bootstraps.sh \
             --architectures aarch64 \
             --add nodejs-lts,python,git,openssh,curl,jq,openssl-tool,nano \
-            2>&1 | tail -100
+            2>&1 | tail -120
           echo "=== bootstrap artifact ==="
           find . -name 'bootstrap-*.zip' | head
           ls -la bootstrap-aarch64.zip 2>/dev/null || true
