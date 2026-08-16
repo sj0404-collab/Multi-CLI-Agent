@@ -18,7 +18,11 @@ const state = {
   library: JSON.parse(localStorage.getItem("mub_lib") || "[]"),
   aiMsgs: [],
   ocrText: "",
+  tabs: JSON.parse(localStorage.getItem("mub_tabs") || "[]"),   // массив вкладок
+  activeTab: 0,
+  history: JSON.parse(localStorage.getItem("mub_hist") || "[]"), // история
 };
+let tabIdSeq = Date.now();
 
 // ── Элементы ──────────────────────────────────────────────────────────────
 const urlInput = $("urlInput"), btnGo = $("btnGo"), content = $("content"),
@@ -37,7 +41,11 @@ async function loadPage(url) {
     const r = await fetch(fetchPageApi(url));
     const j = await r.json();
     if (j.error) { content.innerHTML = '<p style="color:red">' + esc(j.error) + "</p>"; return; }
+    // Сохраняем в активную вкладку + историю
     state.currentUrl = j.url; state.currentTitle = j.title; state.currentText = j.content;
+    const t = state.tabs[state.activeTab];
+    if (t) { t.url = j.url; t.title = j.title; t.text = j.content; saveTabs(); renderTabs(); }
+    addHistory(j.url, j.title);
     urlInput.value = j.url;
     pageHeader.innerHTML = "<h1>" + esc(j.title) + '</h1><div class="url">' + esc(j.url) + "</div>";
     renderText(j.content);
@@ -50,6 +58,74 @@ function renderText(text) {
   const paras = text.split(/\n{2,}/).map(s => s.trim()).filter(Boolean);
   content.innerHTML = paras.map(p => "<p>" + esc(p) + "</p>").join("");
 }
+
+// ── Вкладки ───────────────────────────────────────────────────────────────
+function saveTabs() { localStorage.setItem("mub_tabs", JSON.stringify(state.tabs)); }
+function newTab() {
+  state.tabs.push({ id: tabIdSeq++, url: "", title: "Новая вкладка", text: "", textShown: false });
+  state.activeTab = state.tabs.length - 1;
+  saveTabs(); renderTabs(); showTabContent();
+  urlInput.value = ""; urlInput.focus();
+}
+function closeTab(id) {
+  const i = state.tabs.findIndex(t => t.id === id);
+  if (i < 0) return;
+  state.tabs.splice(i, 1);
+  if (state.tabs.length === 0) newTab();
+  if (state.activeTab >= state.tabs.length) state.activeTab = state.tabs.length - 1;
+  saveTabs(); renderTabs(); showTabContent();
+}
+function activateTab(id) {
+  const i = state.tabs.findIndex(t => t.id === id);
+  if (i < 0) return;
+  state.activeTab = i;
+  saveTabs(); renderTabs(); showTabContent();
+}
+function renderTabs() {
+  $("tabbar").innerHTML = state.tabs.map((t, i) =>
+    `<div class="tab ${i === state.activeTab ? "active" : ""}" data-id="${t.id}">
+       <span class="t-title">${esc(t.title || "Новая вкладка")}</span>
+       <span class="t-close" data-close="${t.id}">✕</span>
+     </div>`).join("");
+  $("tabbar").querySelectorAll(".tab").forEach(el => {
+    el.onclick = () => activateTab(+el.dataset.id);
+    el.querySelector(".t-close").onclick = (e) => { e.stopPropagation(); closeTab(+el.dataset.close); };
+  });
+}
+function showTabContent() {
+  const t = state.tabs[state.activeTab];
+  if (!t) return;
+  if (t.url && t.text) {
+    urlInput.value = t.url;
+    pageHeader.innerHTML = "<h1>" + esc(t.title) + '</h1><div class="url">' + esc(t.url) + "</div>";
+    renderText(t.text);
+  } else {
+    urlInput.value = "";
+    pageHeader.innerHTML = "<h1>Multi Uni-Browser</h1>";
+    content.innerHTML = "<p>Введите URL или текст для чтения.</p>";
+  }
+}
+
+// ── История ───────────────────────────────────────────────────────────────
+function saveHistory() { localStorage.setItem("mub_hist", JSON.stringify(state.history)); }
+function addHistory(url, title) {
+  if (!url) return;
+  state.history = state.history.filter(h => h.url !== url);
+  state.history.unshift({ url, title: title || url, ts: Date.now() });
+  if (state.history.length > 200) state.history = state.history.slice(0, 200);
+  saveHistory();
+}
+function renderHistory() {
+  $("histItems").innerHTML = state.history.length
+    ? state.history.map((h, i) => `<div class="hist-item" data-i="${i}">
+        <div class="t">${esc(h.title)}</div><div class="u">${esc(h.url)}</div>
+        <div class="d">${new Date(h.ts).toLocaleString()}</div></div>`).join("")
+    : '<p style="color:var(--muted)">История пуста.</p>';
+  $("histItems").querySelectorAll(".hist-item").forEach(el => {
+    el.onclick = () => { const h = state.history[+el.dataset.i]; loadPage(h.url); toggleHist(false); };
+  });
+}
+function toggleHist(on) { $("histPanel").classList.toggle("hidden", on === undefined ? !$("histPanel").classList.contains("hidden") : !on); }
 
 // ── Библиотека ────────────────────────────────────────────────────────────
 function saveLibrary() {
@@ -191,10 +267,19 @@ function flash(msg) { const e = document.createElement("div"); e.textContent = m
 // ── События ───────────────────────────────────────────────────────────────
 btnGo.onclick = () => loadPage(urlInput.value);
 urlInput.addEventListener("keydown", e => { if (e.key === "Enter") loadPage(urlInput.value); });
-$("btnAi").onclick = () => { toggleAi(true); toggleLib(false); };
+$("btnAi").onclick = () => { toggleAi(true); toggleLib(false); toggleHist(false); };
+$("btnManga").onclick = () => {
+  // Открыть читалку манги (MangaLib) — в APK/вебе.
+  const base = (typeof AndroidBridge !== "undefined" && AndroidBridge.backendBase)
+    ? AndroidBridge.backendBase() : location.origin;
+  window.open(base + "/mangalib", "_self");
+};
 $("btnAiClose").onclick = () => toggleAi(false);
-$("btnLibrary").onclick = () => { toggleLib(true); toggleAi(false); renderLibrary(); };
+$("btnLibrary").onclick = () => { toggleLib(true); toggleAi(false); toggleHist(false); renderLibrary(); };
 $("btnLibClose").onclick = () => toggleLib(false);
+$("btnNewTab").onclick = newTab;
+$("btnHistory").onclick = () => { toggleHist(true); toggleLib(false); toggleAi(false); renderHistory(); };
+$("btnHistClose").onclick = () => toggleHist(false);
 $("btnAiSend").onclick = sendAi;
 aiInput.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendAi(); } });
 
@@ -215,7 +300,18 @@ $("ocrDrop").addEventListener("drop", e => { e.preventDefault();
 // ── Инициализация ─────────────────────────────────────────────────────────
 renderLibrary();
 renderAi();
-// Приветствие
-pageHeader.innerHTML = "<h1>Multi Uni-Browser</h1>";
-content.innerHTML = "<p>Введите URL в строку выше или задайте вопрос AI-ассистенту.</p>" +
-  "<p>Плавающие кнопки: 🔊 озвучить · ⏹ стоп · 🔍 OCR · 🌐 перевести · 💾 в библиотеку · 🌙 тема.</p>";
+// Вкладки: если нет ни одной — создаём
+if (!state.tabs.length) {
+  state.tabs.push({ id: tabIdSeq++, url: "", title: "Новая вкладка", text: "", textShown: false });
+  state.activeTab = 0;
+  saveTabs();
+}
+renderTabs();
+showTabContent();
+// Приветствие (если активная вкладка пуста)
+if (!state.tabs[state.activeTab] || !state.tabs[state.activeTab].url) {
+  pageHeader.innerHTML = "<h1>Multi Uni-Browser</h1>";
+  content.innerHTML = "<p>Введите URL в строку выше или задайте вопрос AI-ассистенту.</p>" +
+    "<p>Плавающие кнопки: 🔊 озвучить · ⏹ стоп · 🔍 OCR · 🌐 перевести · 💾 в библиотеку · 🌙 тема.</p>" +
+    "<p>Вкладки: ＋ новая · 🕘 история просмотра · 📚 библиотека.</p>";
+}

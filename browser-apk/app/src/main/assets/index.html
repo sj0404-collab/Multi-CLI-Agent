@@ -16,7 +16,13 @@
       <button class="tb-btn" id="btnGo" title="Открыть/читать">▶</button>
     </div>
     <button class="tb-btn" id="btnAi" title="AI-чат">🤖</button>
+    <button class="tb-btn" id="btnManga" title="Читалка манги (MangaLib)">📖</button>
+    <button class="tb-btn" id="btnHistory" title="История">🕘</button>
+    <button class="tb-btn" id="btnNewTab" title="Новая вкладка">＋</button>
   </header>
+
+  <!-- Панель вкладок -->
+  <div id="tabbar"></div>
 
   <!-- Основная область: просмотр страницы -->
   <main id="reader">
@@ -48,6 +54,12 @@
   <aside id="libPanel" class="hidden">
     <div class="panel-head"><span>📚 Библиотека</span><button class="tb-btn" id="btnLibClose">✕</button></div>
     <div id="libItems"></div>
+  </aside>
+
+  <!-- История -->
+  <aside id="histPanel" class="hidden">
+    <div class="panel-head"><span>🕘 История</span><button class="tb-btn" id="btnHistClose">✕</button></div>
+    <div id="histItems"></div>
   </aside>
 
   <!-- Плавающие кнопки -->
