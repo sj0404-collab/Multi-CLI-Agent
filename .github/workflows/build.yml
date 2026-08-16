@@ -47,32 +47,41 @@ jobs:
         run: |
           sudo apt-get install -y unzip zip wget 2>/dev/null || true
           cd ${{ github.workspace }}/termux-packages
-          # termux-packages кладёт SDK в $REPO_ROOT/build-tools/android-sdk-<rev>,
-          # который монтируется в docker (run-docker.sh монтирует весь репозиторий).
-          # Значит предустановку надо делать именно сюда, а не в $HOME/lib.
           REV=9123335
           export ANDROID_HOME="$PWD/build-tools/android-sdk-$REV"
           echo "ANDROID_HOME=$ANDROID_HOME"
-          mkdir -p "$ANDROID_HOME/licenses"
-          printf "24333f8a63b6825ea9c5514f83c2829b004d1fee\n" > "$ANDROID_HOME/licenses/android-sdk-license"
-          # установка SDK/NDK скриптом termux-packages (кладёт в $ANDROID_HOME из properties)
-          ./scripts/setup-android-sdk.sh 2>&1 | tail -25 || true
-          ls -la "$ANDROID_HOME" 2>/dev/null || echo "SDK dir not created"
-          # Дополнительно предустанавливаем компоненты, которые gradle требует при
-          # сборке пакета 'apt' (иначе docker падает: "Failed to read or create install properties").
-          SDK_MGR=$(find "$ANDROID_HOME" -name "sdkmanager" 2>/dev/null | head -1)
-          if [ -z "$SDK_MGR" ]; then SDK_MGR=$(find "$PWD" -name sdkmanager 2>/dev/null | head -1); fi
-          if [ -n "$SDK_MGR" ]; then
-            echo "sdkmanager: $SDK_MGR"
-            yes | "$SDK_MGR" --sdk_root="$ANDROID_HOME" --licenses >/dev/null 2>&1 || true
-            "$SDK_MGR" --sdk_root="$ANDROID_HOME" \
-              "platforms;android-33" "build-tools;30.0.3" \
-              "platforms;android-28" "platforms;android-30" "platforms;android-24" \
-              2>&1 | tail -15 || true
-          else
-            echo "WARN: sdkmanager не найден"
-          fi
-          find "$ANDROID_HOME" -maxdepth 2 -type d 2>/dev/null | head -20
+          mkdir -p "$ANDROID_HOME"
+          # Явно ставим commandlinetools в cmdline-tools/latest/bin/sdkmanager.
+          # (setup-android-sdk.sh качает tools, но при TERMUX_SDK_REVISION=9123335
+          # zip раскладывается нестандартно и sdkmanager не оказывается на месте.)
+          curl -sL --max-time 300 -o /tmp/cmdtools.zip \
+            "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
+          mkdir -p /tmp/cmdtools
+          unzip -q /tmp/cmdtools.zip -d /tmp/cmdtools
+          mkdir -p "$ANDROID_HOME/cmdline-tools/latest"
+          cp -r /tmp/cmdtools/cmdline-tools/* "$ANDROID_HOME/cmdline-tools/latest/" 2>/dev/null || \
+            cp -r /tmp/cmdtools/* "$ANDROID_HOME/cmdline-tools/latest/"
+          SDK_MGR="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          echo "sdkmanager: $SDK_MGR"
+          ls -la "$ANDROID_HOME/cmdline-tools/latest/bin/" | head
+          # licenses
+          yes | "$SDK_MGR" --sdk_root="$ANDROID_HOME" --licenses >/dev/null 2>&1 || true
+          # Компоненты, которые требуют build-bootstraps и gradle пакета apt.
+          "$SDK_MGR" --sdk_root="$ANDROID_HOME" \
+            "platform-tools" \
+            "build-tools;30.0.3" \
+            "platforms;android-33" \
+            "platforms;android-28" \
+            "platforms;android-30" \
+            "platforms;android-24" \
+            2>&1 | tail -15 || true
+          echo "=== platforms ==="
+          ls "$ANDROID_HOME/platforms/" 2>/dev/null
+          echo "=== build-tools ==="
+          ls "$ANDROID_HOME/build-tools/" 2>/dev/null
+          # NDK (нужен для компиляции)
+          ./scripts/setup-android-sdk.sh 2>&1 | tail -15 || true
+          find "$PWD/build-tools" -maxdepth 1 -type d 2>/dev/null | head
         timeout-minutes: 60
 
       - name: Set custom package name + build bootstrap (aarch64)
