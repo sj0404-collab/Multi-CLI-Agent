@@ -3,79 +3,84 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Multi Uni-Browser</title>
-<link rel="stylesheet" href="style.css">
+<title>Uni — Читалка + Браузер</title>
+<style>
+  * { box-sizing: border-box; margin:0; padding:0; }
+  html,body { height:100%; }
+  body { font-family: system-ui,-apple-system,sans-serif; background:#1a1a2e; overflow:hidden; }
+  #app { display:flex; flex-direction:column; height:100vh; }
+
+  /* Верхняя панель вкладок */
+  #tabs { display:flex; align-items:center; gap:4px; padding:6px 8px; background:#16161f;
+    border-bottom:1px solid #2d2d40; z-index:20; }
+  .tab { padding:7px 14px; border-radius:8px; cursor:pointer; font-size:14px; color:#cfd0e0;
+    background:#23233a; border:1px solid #2d2d40; }
+  .tab.active { background:#4f6ef7; color:#fff; font-weight:600; }
+  #urlbar { flex:1; margin-left:8px; display:flex; gap:4px; }
+  #urlInput { flex:1; padding:7px 10px; border-radius:8px; border:1px solid #2d2d40;
+    background:#23233a; color:#fff; font-size:14px; }
+  #goBtn { padding:7px 12px; border-radius:8px; border:none; background:#4f6ef7; color:#fff; cursor:pointer; }
+
+  #frameHost { flex:1; position:relative; }
+  #frameHost iframe { width:100%; height:100%; border:none; }
+
+  /* Плавающая кнопка браузера внутри читалки */
+  #fab { position:fixed; right:14px; bottom:20px; z-index:30; width:52px; height:52px;
+    border-radius:50%; border:none; background:#4f6ef7; color:#fff; font-size:22px;
+    box-shadow:0 4px 14px rgba(0,0,0,.4); cursor:pointer; display:flex; align-items:center;
+    justify-content:center; }
+  #loader { position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    background:#1a1a2e; color:#cfd0e0; font-size:16px; z-index:40; }
+</style>
 </head>
 <body>
 <div id="app">
-  <!-- Топ-бар -->
-  <header id="topbar">
-    <button class="tb-btn" id="btnLibrary" title="Библиотека">📚</button>
-    <div class="urlbar">
-      <input id="urlInput" type="text" placeholder="Введите URL или текст для чтения…" autocomplete="off" spellcheck="false">
-      <button class="tb-btn" id="btnGo" title="Открыть/читать">▶</button>
-    </div>
-    <button class="tb-btn" id="btnAi" title="AI-чат">🤖</button>
-  </header>
-
-  <!-- Основная область: просмотр страницы -->
-  <main id="reader">
-    <div id="pageHeader"></div>
-    <article id="content" contenteditable="false"></article>
-  </main>
-
-  <!-- Панель AI-чата -->
-  <aside id="aiPanel" class="hidden">
-    <div class="panel-head">
-      <span>🤖 AI-ассистент</span>
-      <button class="tb-btn" id="btnAiClose">✕</button>
-    </div>
-    <div id="aiMsgs"></div>
-    <div class="panel-input">
-      <textarea id="aiInput" rows="2" placeholder="Спроси о странице или задай вопрос…"></textarea>
-      <button class="tb-btn" id="btnAiSend">➤</button>
-    </div>
-    <div class="panel-settings">
-      <select id="aiProvider">
-        <option value="zen">Zen (без ключа)</option>
-        <option value="openrouter">OpenRouter</option>
-      </select>
-      <input id="aiKey" type="password" placeholder="OpenRouter ключ (если выбран)">
-    </div>
-  </aside>
-
-  <!-- Библиотека -->
-  <aside id="libPanel" class="hidden">
-    <div class="panel-head"><span>📚 Библиотека</span><button class="tb-btn" id="btnLibClose">✕</button></div>
-    <div id="libItems"></div>
-  </aside>
-
-  <!-- Плавающие кнопки -->
-  <div id="fab">
-    <button class="fab-btn" id="fabVoice" title="Озвучить">🔊</button>
-    <button class="fab-btn" id="fabStopVoice" title="Стоп">⏹</button>
-    <button class="fab-btn" id="fabOcr" title="OCR сканер">🔍</button>
-    <button class="fab-btn" id="fabTranslate" title="Перевести">🌐</button>
-    <button class="fab-btn" id="fabSave" title="Сохранить в библиотеку">💾</button>
-    <button class="fab-btn" id="fabMode" title="Тёмная/светлая">🌙</button>
+  <div id="tabs">
+    <button class="tab active" data-view="manga">📖 Читалка</button>
+    <button class="tab" data-view="browser">🌐 Браузер</button>
   </div>
-
-  <!-- OCR-оверлей -->
-  <div id="ocrOverlay" class="hidden">
-    <div class="ocr-box">
-      <div class="panel-head"><span>🔍 OCR — вставьте изображение или выберите файл</span><button class="tb-btn" id="btnOcrClose">✕</button></div>
-      <input type="file" id="ocrFile" accept="image/*">
-      <div id="ocrDrop">или перетащите изображение сюда</div>
-      <div id="ocrResult"></div>
-    </div>
-  </div>
+  <div id="frameHost"></div>
 </div>
 
-<!-- Tesseract для OCR (загружается по требованию, graceful) -->
+<button id="fab" title="Открыть браузер">🌐</button>
+<div id="loader">Загрузка…</div>
+
 <script>
-  window.Tesseract = null;
+// Конфигурация: откуда брать приложения (автообновление = меняем URL здесь/на сервере)
+const MANGALIB_URL = "file:///android_asset/mangalib.html"; // живой источник MangaLib
+const BROWSER_URL = "file:///android_asset/browser/";            // Uni-browser (GitHub Pages)
+
+const host = document.getElementById("frameHost");
+const tabs = document.querySelectorAll(".tab");
+const fab = document.getElementById("fab");
+const loader = document.getElementById("loader");
+
+function loadView(view) {
+  host.innerHTML = "";
+  loader.style.display = "flex";
+  tabs.forEach(t => t.classList.toggle("active", t.dataset.view === view));
+
+  const iframe = document.createElement("iframe");
+  iframe.style.background = "#fff";
+  iframe.setAttribute("allow", "microphone; camera");
+  if (view === "manga") {
+    iframe.src = MANGALIB_URL;
+    fab.style.display = "flex";
+  } else {
+    iframe.src = BROWSER_URL;
+    fab.style.display = "none";
+  }
+  host.appendChild(iframe);
+  iframe.onload = () => { loader.style.display = "none"; };
+  // таймаут-страховка
+  setTimeout(() => { loader.style.display = "none"; }, 8000);
+}
+
+tabs.forEach(t => t.addEventListener("click", () => loadView(t.dataset.view)));
+fab.addEventListener("click", () => loadView("browser"));
+
+// Старт: читалка главная
+loadView("manga");
 </script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-<script src="app.js"></script>
 </body>
 </html>
