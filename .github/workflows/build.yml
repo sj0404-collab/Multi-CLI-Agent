@@ -96,6 +96,10 @@ jobs:
           cd ${{ github.workspace }}/termux-packages
           sed -i "s/^TERMUX_APP_PACKAGE=.*/TERMUX_APP_PACKAGE=com.termux.multiagent/" scripts/properties.sh
           grep "^TERMUX_APP_PACKAGE" scripts/properties.sh
+          # В новых termux-packages пакет bzip2 переименован в libbz2; build-bootstraps
+          # всё ещё требует bzip2. Чиним имена до сборки.
+          sed -i 's/PACKAGES+=("bzip2")/PACKAGES+=("libbz2")/' scripts/build-bootstraps.sh
+          grep -n "libbz2\|bzip2" scripts/build-bootstraps.sh | head
           # Долгая компиляция nodejs/python для aarch64 под наш пакет.
           ./scripts/run-docker.sh ./scripts/build-bootstraps.sh \
             --architectures aarch64 \
