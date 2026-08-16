@@ -51,14 +51,24 @@ class MainActivity : AppCompatActivity() {
     class Bridge(private val ctx: Context) {
         @JavascriptInterface
         fun backendBase(): String = "http://127.0.0.1:8765"
+
+        private var ttsEngine: android.speech.tts.TextToSpeech? = null
+
         @JavascriptInterface
         fun speak(text: String) {
-            // TTS через Android
-            val tts = android.speech.tts.TextToSpeech(ctx) { status ->
-                if (status == android.speech.tts.TextToSpeech.SUCCESS) {
-                    tts.language = java.util.Locale("ru", "RU")
-                    tts.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "mub")
+            var tts = ttsEngine
+            if (tts == null) {
+                tts = android.speech.tts.TextToSpeech(ctx) { status ->
+                    if (status == android.speech.tts.TextToSpeech.SUCCESS) {
+                        ttsEngine?.language = java.util.Locale("ru", "RU")
+                        ttsEngine?.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "mub")
+                    }
                 }
+                ttsEngine = tts
+                tts.language = java.util.Locale("ru", "RU")
+                tts.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "mub")
+            } else {
+                tts.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "mub")
             }
         }
     }

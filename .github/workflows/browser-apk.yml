@@ -44,9 +44,11 @@ jobs:
           cp -r browser-app/index.html browser-apk/app/src/main/assets/
           cp -r browser-app/style.css browser-apk/app/src/main/assets/
           cp -r browser-app/app.js browser-apk/app/src/main/assets/
+          cp -r browser-app/mangalib.html browser-apk/app/src/main/assets/ 2>/dev/null || true
 
       - name: Build APK (assembleRelease)
         run: |
+          set -o pipefail
           export ANDROID_HOME=/opt/android-sdk
           cd browser-apk
           echo "sdk.dir=/opt/android-sdk" > local.properties
