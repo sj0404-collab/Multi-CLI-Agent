@@ -3,8 +3,6 @@ package com.uni.browser
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import android.os.Bundle
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -18,8 +16,8 @@ import java.net.URL
 class MainActivity : Activity() {
 
     private lateinit var webView: WebView
-    // Автообновление: грузим UI с GitHub Pages (меняется без пересборки APK).
-    private val REMOTE_URL = "https://sj0404-collab.github.io/Multi-CLI-Agent/"
+    // Основная версия — из assets (офлайн, с автопоиском Suwayomi).
+    // Обновляется при пересборке APK; онлайн-Pages не используется (нестабилен).
     private val LOCAL_URL = "file:///android_asset/index.html"
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -35,23 +33,14 @@ class MainActivity : Activity() {
             s.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
             s.cacheMode = WebSettings.LOAD_DEFAULT
             webView.addJavascriptInterface(Bridge(this), "AndroidBridge")
-            // Есть сеть → грузим свежий UI с сервера; нет → локальный
-            if (hasNetwork()) webView.loadUrl(REMOTE_URL) else webView.loadUrl(LOCAL_URL)
+            webView.loadUrl(LOCAL_URL)
         } catch (t: Throwable) {
             android.widget.TextView(this).apply { text = "Ошибка: " + (t.message ?: t.toString()) }.also { setContentView(it) }
         }
     }
 
-    private fun hasNetwork(): Boolean {
-        try {
-            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-            val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
-            return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-        } catch (e: Exception) { return false }
-    }
-
     class Bridge(private val ctx: Context) {
-        @JavascriptInterface fun backendBase(): String = "https://sj0404-collab.github.io/Multi-CLI-Agent/"
+        @JavascriptInterface fun backendBase(): String = "file:///android_asset/"
         @JavascriptInterface fun httpPost(url: String, jsonBody: String): String {
             return try {
                 val conn = URL(url).openConnection() as HttpURLConnection
