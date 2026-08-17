@@ -9,6 +9,8 @@
 
     <application
         android:label="Multi Uni-Browser"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true"
         android:allowBackup="true"
         android:theme="@style/AppTheme">
