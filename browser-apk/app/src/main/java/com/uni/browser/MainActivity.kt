@@ -4,9 +4,13 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.os.Bundle
+import android.webkit.JavascriptInterface
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
-import android.webkit.JavascriptInterface
+import android.webkit.WebViewClient
+import androidx.webkit.WebViewAssetLoader
 import org.json.JSONObject
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
@@ -16,31 +20,49 @@ import java.net.URL
 class MainActivity : Activity() {
 
     private lateinit var webView: WebView
-    // Основная версия — из assets (офлайн, с автопоиском Suwayomi).
-    // Обновляется при пересборке APK; онлайн-Pages не используется (нестабилен).
-    private val LOCAL_URL = "file:///android_asset/index.html"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        try {
-            webView = WebView(this)
-            setContentView(webView)
-            val s = webView.settings
-            s.javaScriptEnabled = true
-            s.domStorageEnabled = true
-            s.allowFileAccess = true
-            s.allowContentAccess = true
-            s.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-            s.cacheMode = WebSettings.LOAD_DEFAULT
-            webView.addJavascriptInterface(Bridge(this), "AndroidBridge")
-            webView.loadUrl(LOCAL_URL)
-        } catch (t: Throwable) {
-            android.widget.TextView(this).apply { text = "Ошибка: " + (t.message ?: t.toString()) }.also { setContentView(it) }
+
+        // Всё приложение лежит локально в assets.
+        // WebViewAssetLoader отдаёт файлы по адресу https://appassets.androidplatform.net/assets/…
+        // Это НАСТОЯЩИЙ безопасный origin (а не file://), поэтому React-модули,
+        // сервис-воркеры и fetch работают без интернета — нет «фиолетового экрана».
+        val loader = WebViewAssetLoader.Builder()
+            .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
+            .build()
+
+        webView = WebView(this)
+        setContentView(webView)
+
+        val s = webView.settings
+        s.javaScriptEnabled = true
+        s.domStorageEnabled = true
+        s.allowFileAccess = true
+        s.allowContentAccess = true
+        s.allowUniversalAccessFromFileURLs = true
+        s.allowFileAccessFromFileURLs = true
+        s.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+        s.cacheMode = WebSettings.LOAD_DEFAULT
+
+        webView.addJavascriptInterface(Bridge(this), "AndroidBridge")
+
+        webView.webViewClient = object : WebViewClient() {
+            override fun shouldInterceptRequest(
+                view: WebView?,
+                request: WebResourceRequest?
+            ): WebResourceResponse? {
+                return loader.shouldInterceptRequest(request!!.url)
+            }
         }
+
+        // Грузим улучшенную читалку MangaLib Plus напрямую (без iframe).
+        // Все ресурсы зашиты в APK — приложение полностью локальное.
+        webView.loadUrl("https://appassets.androidplatform.net/assets/mangalib-plus.html")
     }
 
     class Bridge(private val ctx: Context) {
-        @JavascriptInterface fun backendBase(): String = "file:///android_asset/"
+        @JavascriptInterface fun backendBase(): String = "https://appassets.androidplatform.net/assets/"
         @JavascriptInterface fun httpPost(url: String, jsonBody: String): String {
             return try {
                 val conn = URL(url).openConnection() as HttpURLConnection
